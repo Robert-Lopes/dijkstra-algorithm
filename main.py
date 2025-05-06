@@ -1,4 +1,4 @@
-from source.config.ApiManager import ApiManager
+from source.config.api import ApiManager
 
 def app() -> None:
    app = ApiManager()
