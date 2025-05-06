@@ -1,0 +1,15 @@
+from fastapi import FastAPI
+
+class ApiManager:
+    '''
+    Classe para configuração da API
+    '''
+    def __init__(self) -> None:
+        api = FastAPI()
+        self.config_router()
+
+    def config_router(self) -> None:
+        '''
+        Procedimento de configuração de rotas da API
+        '''
+        pass
