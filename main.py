@@ -6,4 +6,4 @@ def app() -> None:
    return app.get_app()
 
 if __name__ == "__main__":
-    app()
+   app()
