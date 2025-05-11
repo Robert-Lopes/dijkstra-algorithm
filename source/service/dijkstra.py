@@ -1,3 +1,5 @@
+import re
+from fastapi import UploadFile
 from typing import Dict
 
 class AlgorithmDijkstra:
@@ -5,7 +7,19 @@ class AlgorithmDijkstra:
         self.custo: int = 0
         self.verticeInicial : str | None = None
     
-    def custo(self) -> Dict:
-        return {
-            "custo": 1
-        }
+    def validar_arquivo(self, arquivo: UploadFile):
+        linhas = arquivo.file.read().decode('utf-8').split("\n")
+        
+        for linha in linhas:
+            lista_vertice = re.split(pattern=r":\s*|,\s*", string=linha)
+
+            if isinstance(lista_vertice[0], str) and len(lista_vertice[0]) == 1: 
+                vertice_destaco = lista_vertice[0]
+            else: 
+                raise ValueError("O vertice destacado deve ser apenas uma letra")
+            
+            vertice_ponderados = lista_vertice[1:]
+            print(vertice_ponderados)
+
+    def encontrar_caminho(self, arquivo: UploadFile):
+        self.validar_arquivo(arquivo)
