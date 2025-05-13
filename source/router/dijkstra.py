@@ -10,4 +10,4 @@ def calcula_custo(verticeInicial: str, arquivoGrafo: UploadFile):
     
     service = AlgorithmDijkstra(grafo=grafo_definido)
     
-    return service.grafo.lista_adjacencia
+    return service.obter_caminho_vertice(fonte=verticeInicial)
