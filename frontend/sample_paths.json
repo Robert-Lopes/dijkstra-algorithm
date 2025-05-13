@@ -1,0 +1,20 @@
+{
+    "startNode": "A",
+    "paths": [
+      {
+        "target": "B",
+        "path": ["A", "B"],
+        "cost": 10
+      },
+      {
+        "target": "C",
+        "path": ["A", "C"],
+        "cost": 5
+      },
+      {
+        "target": "D",
+        "path": ["A", "B", "D"],
+        "cost": 25
+      }
+    ]
+  }
