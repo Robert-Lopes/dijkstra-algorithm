@@ -74,4 +74,23 @@ class AlgorithmDijkstra:
                     predecessores[neighbor] = no_atual
                     heapq.heappush(fila, (tentative_distance, neighbor))
 
-        return custo, predecessores
+        return custo, self.reconstruir_todos_caminhos(predecessores=predecessores, fonte=fonte)
+    
+    def reconstruir_todos_caminhos(self, predecessores, fonte):
+        caminhos = {}
+
+        for destino in predecessores:
+            caminho = []
+            atual = destino
+            
+            while atual is not None:
+                caminho.append(atual)
+                atual = predecessores[atual]
+            caminho.reverse()
+        
+            if caminho[0] == fonte:
+                caminhos[destino] = caminho
+            else:
+                caminhos[destino] = None 
+
+        return caminhos
