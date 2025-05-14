@@ -1,190 +1,245 @@
 import React, { useState, useRef } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 
-/* Definição do Componente e Estados
-   Define o componente principal App e inicializa os estados com useState para gerenciar os dados do grafo,
-   mensagens de erro, localização do usuário, caminhos encontrados, caminho selecionado, estado de carregamento
-   e arquivo carregado. Também cria uma referência com useRef para interagir com o componente ForceGraph2D.
-*/
 function App() {
-  const [graphData, setGraphData] = useState({ nodes: [], links: [] });
-  const [error, setError] = useState(null);
-  const [location, setLocation] = useState('');
-  const [paths, setPaths] = useState([]);
-  const [selectedPath, setSelectedPath] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [file, setFile] = useState(null);
-  const fgRef = useRef();
+  const [dadosGrafo, setDadosGrafo] = useState({ nodes: [], links: [] });
+  const [erro, setErro] = useState(null);
+  const [localizacao, setLocalizacao] = useState('');
+  const [caminhos, setCaminhos] = useState([]);
+  const [caminhoSelecionado, setCaminhoSelecionado] = useState(null);
+  const [carregando, setCarregando] = useState(false);
+  const [arquivo, setArquivo] = useState(null);
+  const refGrafo = useRef();
 
-  /*Função handleFileUpload
-   Processa o upload de um arquivo .txt, validando seu tipo e conteúdo. Lê o arquivo, parseia as linhas
-   no formato "origem: destino1peso1, destino2peso2" para criar nós e arestas do grafo. Atualiza o estado
-   graphData com os nós e arestas extraídos ou define mensagens de erro se o formato for inválido.
-*/
-  const handleFileUpload = (event) => {
-    setGraphData({ nodes: [], links: [] });
-    setFile(null);
-    setPaths([]);
-    setSelectedPath(null);
-    setLocation('');
-    setError(null);
+  // Carrega e processa um arquivo .txt com a descrição do grafo, validando o formato e construindo os nós e arestas para exibição.
+  const carregarArquivo = (evento) => {
+    // Inicializa os estados, limpando dados anteriores do grafo, caminhos, localização e erros.
+    setDadosGrafo({ nodes: [], links: [] });
+    setArquivo(null);
+    setCaminhos([]);
+    setCaminhoSelecionado(null);
+    setLocalizacao('');
+    setErro(null);
 
-    const selectedFile = event.target.files[0];
-    setFile(selectedFile);
+    // Obtém o arquivo selecionado pelo usuário a partir do evento de input.
+    const arquivoSelecionado = evento.target.files[0];
+    setArquivo(arquivoSelecionado);
 
-    if (!selectedFile) {
-      setError('Nenhum arquivo selecionado.');
+    // Verifica se um arquivo foi selecionado, exibindo erro se não houver.
+    if (!arquivoSelecionado) {
+      setErro('Nenhum arquivo selecionado.');
       return;
     }
 
-    if (selectedFile.type !== 'text/plain') {
-      setError('Por favor, envie um arquivo .txt');
+    // Confirma se o arquivo é do tipo texto (.txt), rejeitando outros formatos.
+    if (arquivoSelecionado.type !== 'text/plain') {
+      setErro('Por favor, envie um arquivo .txt');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result.trim();
-      if (!text) {
-        setError('O arquivo está vazio.');
+    // Configura o leitor de arquivo para processar o conteúdo do arquivo como texto.
+    const leitor = new FileReader();
+    leitor.onload = (e) => {
+      const texto = e.target.result.trim();
+      
+      // Verifica se o arquivo está vazio, exibindo erro se não contiver dados.
+      if (!texto) {
+        setErro('O arquivo está vazio.');
         return;
       }
 
+      // Processa o conteúdo do arquivo, validando e construindo o grafo.
       try {
-        const lines = text.split('\n');
-        const nodesSet = new Set();
-        const links = [];
-        const linkPairs = new Set();
+        const linhas = texto.split('\n');
+        const conjuntoNos = new Set();
+        const mapaArestas = new Map();
+        const paresArestas = new Set();
 
-        lines.forEach(line => {
-          const [from, rest] = line.split(':').map(s => s.trim());
+        // Itera sobre cada linha do arquivo para extrair nós e arestas.
+        linhas.forEach(linha => {
+          const [origem, destinos] = linha.split(':').map(s => s.trim());
 
-          if (!from || !rest) {
-            throw new Error(`Formato inválido na linha: ${line}`);
+          // Valida o formato da linha, exigindo origem e destinos.
+          if (!origem || !destinos) {
+            throw new Error(`Formato inválido na linha: ${linha}`);
           }
 
-          rest.split(',').forEach(part => {
-            const match = part.trim().match(/^([A-Za-z]+)(\d+)$/);
-            if (!match) {
-              throw new Error(`Destino/peso inválido na linha: ${line}`);
+          // Verifica se o nome do vértice de origem é uma única letra válida.
+          if (!origem.match(/^[A-Za-z]$/)) {
+            throw new Error(`Nome do vértice "${origem}" inválido na linha: ${linha}. Use exatamente uma letra (A-Z, a-z).`);
+          }
+
+          // Processa cada destino e peso, validando e armazenando as arestas.
+          destinos.split(',').forEach(parte => {
+            const correspondencia = parte.trim().match(/^([A-Za-z]+)(\d+)$/);
+            if (!correspondencia) {
+              throw new Error(`Destino/peso inválido na linha: ${linha}`);
             }
 
-            const [, to, weight] = match;
-            nodesSet.add(from);
-            nodesSet.add(to);
+            const [, destino, peso] = correspondencia;
+            const pesoNumerico = parseInt(peso);
 
-            const pairKey = [from, to].sort().join('-');
-            const isReverse = linkPairs.has(pairKey);
-            linkPairs.add(pairKey);
+            // Valida se o vértice de destino é uma única letra.
+            if (!destino.match(/^[A-Za-z]$/)) {
+              throw new Error(`Nome do vértice "${destino}" inválido na linha: ${linha}. Use exatamente uma letra (A-Z, a-z).`);
+            }
 
-            links.push({
-              source: from,
-              target: to,
-              label: weight,
-              value: parseInt(weight),
-              curvature: isReverse ? 0.3 : 0
-            });
+            // Gerencia arestas duplicadas, mantendo a de menor peso.
+            const chaveAresta = `${origem}-${destino}`;
+            if (mapaArestas.has(chaveAresta)) {
+              const pesoExistente = mapaArestas.get(chaveAresta).weight;
+              if (pesoNumerico < pesoExistente) {
+                mapaArestas.set(chaveAresta, { origem, destino, weight: pesoNumerico });
+              }
+            } else {
+              mapaArestas.set(chaveAresta, { origem, destino, weight: pesoNumerico });
+            }
+
+            // Adiciona os vértices ao conjunto de nós.
+            conjuntoNos.add(origem);
+            conjuntoNos.add(destino);
           });
         });
 
-        const nodes = Array.from(nodesSet).map(id => ({ id }));
-        setGraphData({ nodes, links });
+        // Converte as arestas processadas em formato compatível com o visualizador, ajustando curvaturas para arestas bidirecionais.
+        const links = Array.from(mapaArestas.values()).map(({ origem, destino, weight }) => {
+          const chavePar = [origem, destino].sort().join('-');
+          const ehReverso = paresArestas.has(chavePar);
+          paresArestas.add(chavePar);
+
+          return {
+            source: origem,
+            target: destino,
+            label: weight.toString(),
+            value: weight,
+            curvature: ehReverso ? 0.3 : 0
+          };
+        });
+
+        // Cria a lista de nós para o grafo.
+        const nodes = Array.from(conjuntoNos).map(id => ({ id }));
+        
+        // Atualiza o estado com os dados do grafo processado.
+        setDadosGrafo({ nodes, links });
       } catch (err) {
-        setError(err.message);
-        setGraphData({ nodes: [], links: [] });
+        // Exibe mensagem de erro e limpa o grafo em caso de falha no processamento.
+        setErro(err.message);
+        setDadosGrafo({ nodes: [], links: [] });
       }
     };
 
-    reader.readAsText(selectedFile);
+    // Inicia a leitura do arquivo como texto.
+    leitor.readAsText(arquivoSelecionado);
   };
 
-  /*Função handleSearchRoutes
-   Valida a localização informada pelo usuário (deve ser uma letra única e um nó válido no grafo).
-   Envia uma requisição POST ao backend com o arquivo e o nó inicial para buscar caminhos.
-   Atualiza o estado paths com os caminhos retornados ou exibe erros se a requisição falhar.
-*/
-  const handleSearchRoutes = async () => {
-    setError(null);
-    setIsLoading(true);
+  // Busca os caminhos possíveis a partir de uma localização inicial, enviando o grafo processado ao backend e atualizando a lista de caminhos encontrados.
+  const buscarCaminhos = async () => {
+    // Inicializa o estado de erro e ativa o indicador de carregamento.
+    setErro(null);
+    setCarregando(true);
 
-    if (!location) {
-      setError('Por favor, informe uma localização.');
-      setIsLoading(false);
+    // Verifica se a localização foi informada.
+    if (!localizacao) {
+      setErro('Por favor, informe uma localização.');
+      setCarregando(false);
       return;
     }
 
-    if (!location.match(/^[A-Za-z]$/)) {
-      setError('A localização deve ser uma única letra (ex.: A).');
-      setIsLoading(false);
+    // Valida se a localização é uma única letra válida.
+    if (!localizacao.match(/^[A-Za-z]$/)) {
+      setErro('A localização deve ser uma única letra (ex.: A).');
+      setCarregando(false);
       return;
     }
 
-    if (!graphData.nodes.some(node => node.id === location)) {
-      setError('Localização inválida. Escolha um nó existente.');
-      setIsLoading(false);
+    // Confirma se a localização corresponde a um nó existente no grafo.
+    if (!dadosGrafo.nodes.some(no => no.id === localizacao)) {
+      setErro('Localização inválida. Escolha um nó existente.');
+      setCarregando(false);
       return;
     }
 
-    const hasOutgoingEdges = graphData.links.some(link => link.source.id === location);
-    if (!hasOutgoingEdges) {
-      setError(`O nó ${location} é um sumidouro. Não é possível calcular caminhos a partir dele.`);
-      setPaths([]);
-      setSelectedPath(null);
-      setIsLoading(false);
+    // Verifica se o nó possui arestas de saída, rejeitando nós sem caminhos possíveis.
+    const temArestasSaida = dadosGrafo.links.some(aresta => aresta.source.id === localizacao);
+    if (!temArestasSaida) {
+      setErro(`O nó ${localizacao} é um sumidouro. Não é possível calcular caminhos a partir dele.`);
+      setCaminhos([]);
+      setCaminhoSelecionado(null);
+      setCarregando(false);
       return;
     }
 
-    if (!file) {
-      setError('Nenhum arquivo selecionado.');
-      setIsLoading(false);
+    // Garante que um arquivo foi carregado antes de prosseguir.
+    if (!arquivo) {
+      setErro('Nenhum arquivo selecionado.');
+      setCarregando(false);
       return;
     }
 
+    // Envia a requisição ao backend com o grafo processado.
     try {
-      const formData = new FormData();
-      formData.append('arquivoGrafo', file);
-      
-      console.log('Enviando FormData:', {
-        verticeInicial: location,
-        arquivoGrafo: file.name
+      // Constrói um arquivo limpo a partir dos dados do grafo, removendo arestas duplicadas.
+      const arestasPorNo = {};
+      dadosGrafo.links.forEach(aresta => {
+        const origem = aresta.source.id || aresta.source;
+        const destino = aresta.target.id || aresta.target;
+        const peso = aresta.value;
+        if (!arestasPorNo[origem]) {
+          arestasPorNo[origem] = [];
+        }
+        arestasPorNo[origem].push(`${destino}${peso}`);
       });
 
-      const response = await fetch(`http://127.0.0.1:5000/custo?verticeInicial=${encodeURIComponent(location)}`, {
+      // Formata o conteúdo do arquivo no formato esperado (ex.: "A: B2, C3").
+      const conteudoLimpo = Object.entries(arestasPorNo)
+        .map(([origem, destinos]) => `${origem}: ${destinos.join(', ')}`)
+        .join('\n');
+
+      // Cria um novo arquivo com o conteúdo limpo para enviar ao backend.
+      const arquivoLimpo = new Blob([conteudoLimpo], { type: 'text/plain' });
+      const dadosFormulario = new FormData();
+      dadosFormulario.append('arquivoGrafo', arquivoLimpo, arquivo.name);
+
+      // Registra o conteúdo enviado para depuração.
+      console.log('Enviando FormData com conteúdo limpo:', {
+        verticeInicial: localizacao,
+        arquivoGrafo: conteudoLimpo
+      });
+
+      // Faz a requisição POST ao backend para calcular os caminhos.
+      const resposta = await fetch(`http://127.0.0.1:5000/custo?verticeInicial=${encodeURIComponent(localizacao)}`, {
         method: 'POST',
-        body: formData
+        body: dadosFormulario
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Erro do servidor:', errorData);
-        throw new Error(`Erro ${response.status}: ${errorData.detail}`);
+      // Verifica se a resposta do backend foi bem-sucedida.
+      if (!resposta.ok) {
+        const dadosErro = await resposta.json();
+        console.error('Erro do servidor:', dadosErro);
+        throw new Error(`Erro ${resposta.status}: ${dadosErro.detail}`);
       }
 
-      const data = await response.json();
-      console.log('Resposta recebida:', data);
-      setPaths(data.paths);
-      setError(null);
+      // Atualiza os caminhos com os dados retornados pelo backend.
+      const dados = await resposta.json();
+      console.log('Resposta recebida:', dados);
+      setCaminhos(dados.paths);
+      setErro(null);
     } catch (err) {
+      // Exibe mensagem de erro em caso de falha na requisição.
       console.error('Erro na requisição:', err);
-      setError(err.message);
+      setErro(err.message);
     } finally {
-      setIsLoading(false);
+      // Desativa o indicador de carregamento.
+      setCarregando(false);
     }
   };
 
-  /*Função handlePathClick
-   Define o caminho selecionado pelo usuário quando um caminho da lista é clicado,
-   permitindo que ele seja destacado visualmente no grafo.
-*/
-  const handlePathClick = (path) => {
-    setSelectedPath(path);
+  // Define o caminho selecionado pelo usuário ao clicar em um item da lista de caminhos, destacando-o no grafo.
+  const selecionarCaminho = (caminho) => {
+    // Atualiza o estado com o caminho escolhido para destaque visual.
+    setCaminhoSelecionado(caminho);
   };
 
-  /*Renderização do JSX
-   Define a interface do usuário, dividida em duas seções: um painel lateral com controles
-   (upload de arquivo, entrada de localização, botão de busca e lista de caminhos) e uma área
-   fixa para o grafo. Inclui estilos inline para layout e comportamento visual.
-*/
   return (
     <div style={{
       height: '100vh',
@@ -203,55 +258,55 @@ function App() {
       }}>
         <h2 style={{ marginBottom: 20 }}>Visualizador de Grafos</h2>
         <div style={{ marginBottom: 20 }}>
-          <input type="file" accept=".txt" onChange={handleFileUpload} />
-          {error && <p style={{ color: 'red', marginTop: 10 }}>{error}</p>}
+          <input type="file" accept=".txt" onChange={carregarArquivo} />
+          {erro && <p style={{ color: 'red', marginTop: 10 }}>{erro}</p>}
         </div>
         <div style={{ marginBottom: 20 }}>
           <p style={{ marginBottom: 10 }}>Informe a origem:</p>
           <input
             type="text"
             placeholder="Digite sua localização"
-            value={location}
-            onChange={(e) => setLocation(e.target.value.trim().toUpperCase())}
+            value={localizacao}
+            onChange={(e) => setLocalizacao(e.target.value.trim())}
             style={{ width: '95%', padding: 8, border: '1px solid #ccc', borderRadius: 4 }}
           />
           <button
-            onClick={handleSearchRoutes}
-            disabled={isLoading}
+            onClick={buscarCaminhos}
+            disabled={carregando}
             style={{
               width: '100%',
               padding: 8,
               marginTop: 10,
-              backgroundColor: isLoading ? '#ccc' : '#007bff',
+              backgroundColor: carregando ? '#ccc' : '#007bff',
               color: 'white',
               border: 'none',
               borderRadius: 4,
-              cursor: isLoading ? 'not-allowed' : 'pointer'
+              cursor: carregando ? 'not-allowed' : 'pointer'
             }}
           >
-            {isLoading ? 'Buscando...' : 'Buscar Rotas'}
+            {carregando ? 'Buscando...' : 'Buscar Rotas'}
           </button>
         </div>
-        {paths.length > 0 && (
+        {caminhos.length > 0 && (
           <div>
-            <h3 style={{ marginBottom: 10 }}>Caminhos Encontrados (Origem: {location})</h3>
+            <h3 style={{ marginBottom: 10 }}>Caminhos Encontrados (Origem: {localizacao})</h3>
             <ul style={{ listStyle: 'none', padding: 0 }}>
-              {paths.map((path, index) => (
+              {caminhos.map((caminho, indice) => (
                 <li
-                  key={index}
-                  onClick={() => handlePathClick(path)}
+                  key={indice}
+                  onClick={() => selecionarCaminho(caminho)}
                   style={{
                     padding: 10,
                     marginBottom: 5,
-                    backgroundColor: selectedPath === path ? '#e0f7fa' : '#f5f5f5',
+                    backgroundColor: caminhoSelecionado === caminho ? '#e0f7fa' : '#f5f5f5',
                     borderRadius: 4,
                     cursor: 'pointer',
                     border: '1px solid #ddd'
                   }}
                 >
-                  <strong>Destino: {path.target}</strong><br />
-                  Caminho: {path.path.join(' -> ')}<br />
-                  Custo: {path.cost}
+                  <strong>Destino: {caminho.target}</strong><br />
+                  Caminho: {caminho.path.join(' -> ')}<br />
+                  Custo: {caminho.cost}
                 </li>
               ))}
             </ul>
@@ -274,92 +329,85 @@ function App() {
             }
           `}
         </style>
-
-    {/* Configuração do ForceGraph2D
-   Configura o componente ForceGraph2D para renderizar o grafo. Define propriedades visuais para nós
-   (círculos com rótulos, destacando o nó inicial em verde) e arestas (setas com pesos, destacando o
-   caminho selecionado em vermelho). Inclui lógica para renderizar rótulos de pesos nas arestas, com
-   suporte a curvatura para arestas bidirecionais. */}
-
         <ForceGraph2D
-          ref={fgRef}
-          graphData={graphData}
+          ref={refGrafo}
+          graphData={dadosGrafo}
           nodeAutoColorBy="id"
           linkDirectionalArrowLength={6}
           linkDirectionalArrowRelPos={1}
-          linkLabel={link => `peso: ${link.label}`}
-          linkCurvature={link => link.curvature || 0}
-          linkLineWidth={link => {
-            if (!selectedPath) return 1;
-            for (let i = 0; i < selectedPath.path.length - 1; i++) {
-              const source = selectedPath.path[i];
-              const target = selectedPath.path[i + 1];
-              if (link.source.id === source && link.target.id === target) {
+          linkLabel={aresta => `peso: ${aresta.label}`}
+          linkCurvature={aresta => aresta.curvature || 0}
+          linkLineWidth={aresta => {
+            if (!caminhoSelecionado) return 1;
+            for (let i = 0; i < caminhoSelecionado.path.length - 1; i++) {
+              const origem = caminhoSelecionado.path[i];
+              const destino = caminhoSelecionado.path[i + 1];
+              if (aresta.source.id === origem && aresta.target.id === destino) {
                 return 3;
               }
             }
             return 1;
           }}
-          linkColor={link => {
-            if (!selectedPath) return 'gray';
-            for (let i = 0; i < selectedPath.path.length - 1; i++) {
-              const source = selectedPath.path[i];
-              const target = selectedPath.path[i + 1];
-              if (link.source.id === source && link.target.id === target) {
+          linkColor={aresta => {
+            if (!caminhoSelecionado) return 'gray';
+            for (let i = 0; i < caminhoSelecionado.path.length - 1; i++) {
+              const origem = caminhoSelecionado.path[i];
+              const destino = caminhoSelecionado.path[i + 1];
+              if (aresta.source.id === origem && aresta.target.id === destino) {
                 return 'red';
               }
             }
             return 'gray';
           }}
           linkCanvasObjectMode={() => 'after'}
-          linkCanvasObject={(link, ctx) => {
-            const label = `${link.label}`;
-            if (!label) return;
+          linkCanvasObject={(aresta, ctx) => {
+            const rotulo = `${aresta.label}`;
+            if (!rotulo) return;
 
-            const curvature = link.curvature || 0;
-            const startX = link.source.x;
-            const startY = link.source.y;
-            const endX = link.target.x;
-            const endY = link.target.y;
+            const curvatura = aresta.curvature || 0;
+            const inicioX = aresta.source.x;
+            const inicioY = aresta.source.y;
+            const fimX = aresta.target.x;
+            const fimY = aresta.target.y;
 
-            if (curvature === 0) {
-              const midX = (startX + endX) / 2;
-              const midY = (startY + endY) / 2;
+            if (curvatura === 0) {
+              const meioX = (inicioX + fimX) / 2;
+              const meioY = (inicioY + fimY) / 2;
 
               ctx.font = '4px Arial';
               ctx.fillStyle = 'white';
               ctx.lineWidth = 0;
-              ctx.strokeText(label, midX, midY);
-              ctx.fillText(label, midX, midY);
+              ctx.strokeText(rotulo, meioX, meioY);
+              ctx.fillText(rotulo, meioX, meioY);
             } else {
-              const dx = endX - startX;
-              const dy = endY - startY;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              const midX = (startX + endX) / 2;
-              const midY = (startY + endY) / 2;
+              const dx = fimX - inicioX;
+              const dy = fimY - inicioY;
+              const distancia = Math.sqrt(dx * dx + dy * dy);
+              const meioX = (inicioX + fimX) / 2;
+              const meioY = (inicioY + fimY) / 2;
 
-              const nx = -dy / dist;
-              const ny = dx / dist;
-              const curveOffset = curvature * dist * (-0.5);
+              const nx = -dy / distancia;
+              const ny = dx / distancia;
+              const deslocamentoCurva = curvatura * distancia * (-0.5);
 
-              const labelX = midX + nx * curveOffset;
-              const labelY = midY + ny * curveOffset;
+              const rotuloX = meioX + nx * deslocamentoCurva;
+              const rotuloY = meioY + ny * deslocamentoCurva;
 
               ctx.font = '4px Arial';
               ctx.fillStyle = 'white';
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.strokeText(label, labelX, labelY);
-              ctx.fillText(label, labelX, labelY);
+              ctx.strokeText(rotulo, rotuloX, rotuloY);
+              ctx.fillText(rotulo, rotuloX, rotuloY);
             }
           }}
-          nodeCanvasObject={(node, ctx, globalScale) => {
-            const label = node.id;
-            const radius = 5;
+          nodeCanvasObject={(no, ctx, escalaGlobal) => {
+            const rotulo = no.id;
+            const raio = 5;
 
             ctx.beginPath();
-            ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI, false);
-            ctx.fillStyle = node.id === location ? 'green' : (node.color || 'gray');
+            ctx.arc(no.x, no.y, raio, 0, 2 * Math.PI, false);
+            ctx.fillStyle = no.id === localizacao ? 'green' : (no.color || 'gray');
             ctx.fill();
             ctx.strokeStyle = 'black';
             ctx.lineWidth = 0.5;
@@ -369,7 +417,7 @@ function App() {
             ctx.fillStyle = 'white';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(label, node.x, node.y);
+            ctx.fillText(rotulo, no.x, no.y);
           }}
         />
       </div>
